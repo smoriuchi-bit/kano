@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="description" content="自分で問題を作って覚える、単語クイズ・赤シート・単語帳アプリ">
+<meta name="theme-color" content="#1C2B4A">
+<title>単語クイズ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+ <div class="logo">単語<span>クイズ</span></div>
+ <div class="sbadge" id="sbadge">✓<span class="sc" id="hC">0</span> ✗<span class="si" id="hI">0</span> 📌<span class="sp" id="hP">0</span></div>
+</header>
+<main>
+
+<!-- HOME -->
+<div class="screen on" id="sHome">
+ <div class="tabs">
+   <button class="tab on" onclick="showTab('tInput')" id="ntInput"><span class="ti">✏️</span>入力</button>
+   <button class="tab" onclick="showTab('tQuiz')" id="ntQuiz"><span class="ti">🎯</span>クイズ</button>
+   <button class="tab" onclick="showTab('tBook')" id="ntBook"><span class="ti">📖</span>単語帳</button>
+   <button class="tab" onclick="showTab('tStore')" id="ntStore"><span class="ti">🗄️</span>保存</button>
+   <button class="tab" onclick="showTab('tConv')" id="ntConv"><span class="ti">🔧</span>変換</button>
+ </div>
+
+ <!-- 入力タブ -->
+ <div id="tInput">
+   <div class="stitle">問題を入力する</div>
+   <div class="hint">
+     <strong>記述：</strong>問題-答え・解説　　<strong>選択：</strong>問題-①A②B③C④D=②<br>
+     <strong>穴埋め：</strong>+文章の(隠す部分)を含む文-答え　　<strong>改行：</strong>^<br>
+     <strong>セクション：</strong>行頭に ［セクション名］　　<strong>別解：</strong>答えを | で区切る<br>
+     <strong>長文：</strong>行頭に ++（空欄ごとに1問）または +++（他の空欄も隠す）
+   </div>
+   <textarea id="inputArea" placeholder="日本の首都は？-東京&#10;次のうち正しいのは？-①東京②大阪③名古屋④福岡=①・東京が正解" oninput="renderQList()" spellcheck="false"></textarea>
+   <div class="save-panel">
+     <div class="save-panel-title">💾 保存・読込</div>
+     <div class="save-panel-btns">
+       <button class="btn btn-ink btn-sm" onclick="saveToFile()">💾 名前をつけて保存</button>
+       <button class="btn btn-out btn-sm" onclick="document.getElementById('fileInput').click()">📂 ファイルを読み込む</button>
+       <input type="file" id="fileInput" accept=".json,.txt" onchange="loadFromFile(event)">
+     </div>
+   </div>
+   <div class="toolbar" style="margin-top:7px">
+     <span class="tlabel" id="qCountLabel">問題数：0問</span>
+     <button class="btn btn-dng btn-sm" onclick="confirmClear()">🗑 全削除</button>
+   </div>
+   <div class="qlist" id="qList"></div>
+ </div>
+
+ <!-- クイズタブ -->
+ <div id="tQuiz" style="display:none">
+   <div class="stitle">クイズモード</div>
+   <div class="mrow">
+     <div class="mcard on" data-mode="normal" onclick="selMode('normal')"><div class="mi">📚</div><div class="mn">ノーマル</div><div class="md">自動採点・制限なし</div></div>
+     <div class="mcard" data-mode="selfgrade" onclick="selMode('selfgrade')"><div class="mi">✋</div><div class="mn">自己採点</div><div class="md">自分で○×を判定</div></div>
+     <div class="mcard" data-mode="timeattack" onclick="selMode('timeattack')"><div class="mi">⏱️</div><div class="mn">タイムアタック</div><div class="md">制限時間あり</div></div>
+   </div>
+   <div id="orderSec">
+     <div class="stitle" style="font-size:.83rem">出題順序</div>
+     <div class="orow">
+       <div class="ocard on" data-order="straight" onclick="selOrder('straight')"><div class="oi">📋</div><div class="on_">入力順</div></div>
+       <div class="ocard" data-order="random" onclick="selOrder('random')"><div class="oi">🔀</div><div class="on_">ランダム</div></div>
+       <div class="ocard" data-order="weakness" onclick="selOrder('weakness')"><div class="oi">🎯</div><div class="on_">弱点優先</div></div>
+     </div>
+   </div>
+   <div class="tcfg hid" id="timerCfg">
+     <label>⏱ 制限時間</label>
+     <input type="range" id="timerRange" min="5" max="60" step="5" value="15" oninput="updTimer()">
+     <span class="tval" id="timerVal">15秒</span>
+   </div>
+   <div class="stitle" style="font-size:.83rem;margin-top:2px">答え合わせの設定</div>
+   <div class="ttscfg" style="margin-bottom:8px;gap:10px">
+     <label class="ttog" style="flex:1"><input type="checkbox" id="ignoreSpaces" checked> スペース無視（半・全角）</label>
+     <label class="ttog" style="flex:1"><input type="checkbox" id="ignoreBrackets" checked> カッコ内を無視　（）［］【】</label>
+   </div>
+   <div class="stitle" style="font-size:.83rem;margin-top:2px">音声設定</div>
+   <div class="ttscfg">
+     <label>🔊 言語</label>
+     <select id="ttsLang">
+       <option value="ja-JP">日本語</option><option value="en-US">英語（米）</option>
+       <option value="en-GB">英語（英）</option><option value="zh-CN">中国語</option><option value="ko-KR">韓国語</option>
+     </select>
+     <label class="ttog"><input type="checkbox" id="ttsAuto"> 自動再生</label>
+   </div>
+   <div class="brow" style="flex-direction:column;gap:7px;margin-top:3px">
+     <button class="btn btn-red btn-w" onclick="startQuiz('all')">▶ クイズを始める</button>
+     <div class="brow">
+       <button class="btn btn-gld btn-w" id="startPinBtn" onclick="startQuiz('pinned')" style="display:none">📌 ピンのみ</button>
+       <button class="btn btn-out btn-w" id="startWrongBtn" onclick="startQuiz('wrong')" style="display:none">🔁 不正解のみ</button>
+     </div>
+     <button class="btn btn-ink btn-w" id="startWeakBtn" onclick="startQuiz('weakness')" style="display:none">🎯 弱点モード</button>
+   </div>
+ </div>
+
+ <!-- 単語帳 + 赤シート -->
+ <div id="tBook" style="display:none">
+   <div class="wbhdr">
+     <div class="wbtop">
+       <div><div class="wbtit" id="wbtit">📖 単語帳</div><div class="wbsub" id="wbsub">単語と答えを一覧表示</div></div>
+       <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+         <div class="vtog">
+           <button class="vbtn on" onclick="setView('wb')" id="vbWb">📖 単語帳</button>
+           <button class="vbtn" onclick="setView('rs')" id="vbRs">🔴 赤シート</button>
+         </div>
+         <span class="wbcnt" id="wbCnt"></span>
+       </div>
+     </div>
+     <div class="wbflts">
+       <button class="wbf on" onclick="bkFilter('all',this)">すべて</button>
+       <button class="wbf" onclick="bkFilter('pinned',this)">📌 ピン</button>
+       <button class="wbf" onclick="bkFilter('wrong',this)">✗ 不正解</button>
+       <button class="wbf" onclick="bkFilter('weak',this)">🎯 弱点</button>
+       <button class="wbf" onclick="bkFilter('mc',this)">🔘 選択</button>
+     </div>
+     <div class="rsctrls" id="rsCtrls" style="display:none">
+       <button class="rsbtn" onclick="rsHideAll()">全て隠す</button>
+       <button class="rsbtn" onclick="rsShowAll()">全て表示</button>
+       <div class="rsmrow">
+         <button class="rsmb on" onclick="rsSetMode('answer',this)">答えを隠す</button>
+         <button class="rsmb" onclick="rsSetMode('question',this)">問題を隠す</button>
+       </div>
+     </div>
+   </div>
+   <div id="bookList"></div>
+ </div>
+
+ <!-- 保存場所タブ -->
+ <div id="tStore" style="display:none">
+   <div class="stitle">🗄️ 保存場所</div>
+   <div class="hint">「名前をつけて保存」するとここに保管されます。読み込むと入力欄に反映されます。<br>データはこのブラウザの中にだけ保存されます。別の端末で使うときは「ファイルに書き出す」で移してください。</div>
+   <div id="storageList"><div class="storempty">保存されたデータがありません</div></div>
+ </div>
+
+ <!-- 変換ツールタブ -->
+ <div id="tConv" style="display:none">
+   <div class="stitle">🔧 変換ツール</div>
+   <div class="conv-layout">
+     <!-- INPUT SIDE -->
+     <div class="conv-col">
+       <div class="conv-col-hdr">
+         <span class="conv-col-lbl">入力テキスト</span>
+         <button class="btn btn-out btn-sm" onclick="convClearIn()">クリア</button>
+       </div>
+       <textarea id="convIn" placeholder="変換したいテキストをここに貼り付けてください…" style="height:220px" oninput="convAutoPreview()"></textarea>
+
+       <!-- Removal tools -->
+       <div class="conv-section">
+         <div class="conv-sec-title">🗑 削除・整形</div>
+         <div class="conv-btns">
+           <button class="cbtn" onclick="convDo('emptyLines')">空行削除</button>
+           <button class="cbtn" onclick="convDo('numbers')">数字削除</button>
+           <button class="cbtn" onclick="convDo('kanji')">漢字削除</button>
+           <button class="cbtn" onclick="convDo('addPlus')">括弧行に+付加</button>
+           <button class="cbtn" onclick="convDo('qaFormat')">Q-A形式に変換</button>
+         </div>
+       </div>
+       <!-- Remove words -->
+       <div class="conv-section">
+         <div class="conv-sec-title">✂ 特定の文字を削除</div>
+         <div class="conv-row">
+           <input type="text" id="convRemoveWord" class="conv-input" placeholder="削除する文字・単語">
+           <button class="cbtn cbtn-blue" onclick="convDo('removeWord')">削除</button>
+         </div>
+       </div>
+       <!-- Replacement -->
+       <div class="conv-section">
+         <div class="conv-sec-title">🔄 置換</div>
+         <div class="conv-row">
+           <input type="text" id="convFrom" class="conv-input" placeholder="検索">
+           <span style="color:#aaa;font-size:.8rem">→</span>
+           <input type="text" id="convTo" class="conv-input" placeholder="置換後">
+           <button class="cbtn cbtn-blue" onclick="convDo('replace')">置換</button>
+         </div>
+       </div>
+     </div>
+
+     <!-- OUTPUT SIDE -->
+     <div class="conv-col">
+       <div class="conv-col-hdr">
+         <span class="conv-col-lbl">出力テキスト</span>
+         <div style="display:flex;gap:5px;align-items:center">
+           <span id="convOutCount" style="font-size:.72rem;color:#aaa;margin-right:3px"></span>
+           <button class="btn btn-out btn-sm" onclick="convCopy()">📋 コピー</button>
+           <button class="btn btn-grn btn-sm" onclick="convSendToQuiz()">→ クイズへ送る</button>
+         </div>
+       </div>
+       <textarea id="convOut" placeholder="変換結果がここに表示されます…&#10;&#10;テキストを直接編集することもできます。" style="height:220px" oninput="convCount()"></textarea>
+
+       <!-- Text conversion tools -->
+       <div class="conv-section">
+         <div class="conv-sec-title">🔤 文字変換</div>
+         <div class="conv-btns">
+           <button class="cbtn" onclick="convTx('hiragana')">カタカナ→ひらがな</button>
+           <button class="cbtn" onclick="convTx('katakana')">ひらがな→カタカナ</button>
+           <button class="cbtn" onclick="convTx('upper')">小文字→大文字</button>
+           <button class="cbtn" onclick="convTx('lower')">大文字→小文字</button>
+           <button class="cbtn" onclick="convTx('fullwidth')">半角→全角</button>
+           <button class="cbtn" onclick="convTx('halfwidth')">全角→半角</button>
+         </div>
+       </div>
+
+       <!-- Output actions on output text -->
+       <div class="conv-section">
+         <div class="conv-sec-title">📤 出力に追加操作</div>
+         <div class="conv-btns">
+           <button class="cbtn" onclick="convOutDo('emptyLines')">空行削除</button>
+           <button class="cbtn" onclick="convOutDo('numbers')">数字削除</button>
+           <button class="cbtn" onclick="convOutDo('addPlus')">括弧行に+付加</button>
+           <button class="cbtn cbtn-red" onclick="convSwap()">⇄ 入出力を入れ替え</button>
+         </div>
+       </div>
+     </div>
+   </div>
+ </div>
+
+</div>
+
+<!-- QUIZ -->
+<div class="screen" id="sQuiz">
+ <div class="qtopbar">
+   <button class="qback" onclick="confirmQuit()">← 戻る</button>
+   <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+     <span style="font-size:.72rem;font-weight:700;color:var(--green)" id="qOkCount">✓ 0</span>
+     <span style="font-size:.72rem;font-weight:700;color:var(--red)" id="qNgCount">✗ 0</span>
+   </div>
+ </div>
+ <div class="qprog"><div class="ppw"><div class="ppf" id="ppf" style="width:0%"></div></div><div class="pplbl" id="pplbl">0/0</div></div>
+ <div id="tRing" class="tring">
+   <svg width="60" height="60" viewBox="0 0 60 60">
+     <circle class="tbg" cx="30" cy="30" r="27" stroke-width="5" fill="none"/>
+     <circle class="tfg" id="tfg" cx="30" cy="30" r="27" stroke-width="5" fill="none" stroke-linecap="round"/>
+   </svg>
+   <div class="tnum" id="tnum">15</div>
+ </div>
+ <div class="qcard" id="qCard">
+   <div class="qhdr">
+     <div style="margin-bottom:5px"><span class="sec-label" id="secLabel" style="display:none"></span></div>
+     <div class="qmeta">
+       <div class="qnum" id="qNum">問題 1</div>
+       <span class="pinind" id="pinInd">📌</span>
+       <span class="wbadge" id="wBadge"></span>
+       <span class="mctag" id="mcTag">選択問題</span>
+       <span class="sgtag" id="sgTag" style="display:none">自己採点</span>
+       <span class="tbadge fill" id="fillTag" style="display:none">穴埋め</span>
+     </div>
+     <button class="qpinbtn" id="qPinBtn" onclick="togglePin()" aria-label="ピン留め">📌</button>
+   </div>
+   <div class="qtxt" id="qTxt">…</div>
+   <div class="ttsrow"><button class="btn btn-tts" onclick="ttsQ()">🔊 問題を読む</button></div>
+ </div>
+
+ <!-- 答え入力欄 -->
+ <div class="ansa" id="ansArea">
+   <input type="text" class="ansi" id="ansInput" placeholder="答えを入力してください…（Enterで確定）" onkeydown="if(event.key==='Enter'&&!event.isComposing)checkAns()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+ </div>
+ <div class="mcgrid" id="mcGrid" style="display:none"></div>
+
+ <!-- 自己採点：正解表示エリア -->
+ <div class="sg-reveal" id="sgReveal">
+   <div class="sg-qlbl">正解</div>
+   <div class="sg-answer" id="sgAns"></div>
+   <div class="sg-exp" id="sgExp" style="display:none"></div>
+   <div class="ttsrow" style="margin-top:8px"><button class="btn btn-tts" onclick="ttsA()">🔊 答えを読む</button></div>
+ </div>
+
+ <!-- 自己採点：○×ボタン -->
+ <div class="sg-btns" id="sgBtns">
+   <button class="sg-ok" onclick="sgJudge(true)">⭕ 正解<span class="sg-sub">合ってた！</span></button>
+   <button class="sg-ng" onclick="sgJudge(false)">❌ 不正解<span class="sg-sub">間違えた…</span></button>
+ </div>
+
+ <!-- 通常フィードバック -->
+ <div class="fb" id="fbCard">
+   <div class="fblbl" id="fbLbl"></div>
+   <div class="fbans" id="fbAns"></div>
+   <div class="fbexlbl">解説</div>
+   <div class="fbexp" id="fbExp"></div>
+   <div class="ttsrow" style="margin-top:7px"><button class="btn btn-tts" id="ttsABtn" onclick="ttsA()" style="display:none">🔊 答えを読む</button></div>
+ </div>
+
+ <div class="brow">
+   <button class="btn btn-red btn-w" id="checkBtn" onclick="checkAns()">答え合わせ</button>
+   <button class="btn btn-ink btn-w" id="nextBtn" style="display:none" onclick="nextQ()">次の問題 →</button>
+ </div>
+</div>
+
+<!-- RESULT -->
+<div class="screen" id="sResult">
+ <div class="reshero">
+   <div class="resemo" id="resEmo">🎉</div>
+   <div class="restit" id="resTit">お疲れ様！</div>
+   <div class="ressub" id="resSub"></div>
+ </div>
+ <div class="resstats">
+   <div class="stcard g"><div class="stnum" id="stC">0</div><div class="stlbl">正解</div></div>
+   <div class="stcard r"><div class="stnum" id="stI">0</div><div class="stlbl">不正解</div></div>
+   <div class="stcard b"><div class="stnum" id="stP">0%</div><div class="stlbl">正解率</div></div>
+ </div>
+ <div class="lsec" id="wrongSec" style="display:none">
+   <div class="lstit">間違えた問題</div>
+   <div id="wrongList"></div>
+ </div>
+ <div class="brow" style="flex-direction:column;gap:7px">
+   <button class="btn btn-out btn-w" id="retryWrong" style="display:none" onclick="startQuiz('wrong')">🔁 不正解をやり直す</button>
+   <button class="btn btn-gld btn-w" id="retryPin" style="display:none" onclick="startQuiz('pinned')">📌 ピン問題をやり直す</button>
+   <button class="btn btn-ink btn-w" onclick="startQuiz('weakness')">🎯 弱点優先でやり直す</button>
+   <button class="btn btn-red btn-w" onclick="startQuiz('all')">▶ もう一度（全問）</button>
+   <button class="btn btn-out btn-w" onclick="goHome()">✏ 問題を編集する</button>
+ </div>
+</div>
+
+</main>
+<div class="moverlay" id="modal" onclick="closeModalOut(event)">
+ <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mTit"><div class="mtit" id="mTit"></div><div class="mbody" id="mBody"></div><div class="macts" id="mActs"></div></div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="cflayer" id="cfLayer"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
